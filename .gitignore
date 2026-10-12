@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# 环境变量
+.env
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# 数据 / 索引 / 日志
+data/index/
+backend/logs/
+*.log
+logs_*.txt
+docker/volumes/
+docker/volumes3/
+
+# 编辑器 / 工具私有文件
+.workbuddy/
+*.genie
+
+# Milvus Lite 本地库文件
+*.db
+*.db.lock
+
+# IDE
+.vscode/
+.idea/
+.DS_Store

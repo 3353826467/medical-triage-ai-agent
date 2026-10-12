@@ -1,0 +1,23 @@
+{
+  "name": "medical-ai-agent-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "智能问诊 AI 客服系统 - 前端",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@esbuild/win32-x64": "^0.28.2",
+    "@rollup/rollup-win32-x64-msvc": "^4.64.5",
+    "esbuild": "^0.28.2",
+    "marked": "^12.0.2",
+    "vue": "^3.4.27"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.5",
+    "vite": "^5.2.11"
+  }
+}
