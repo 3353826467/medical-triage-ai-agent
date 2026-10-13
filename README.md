@@ -1,14 +1,126 @@
-# 智能问诊 AI 客服系统
+# 🏥 智能问诊 AI 客服系统
 
-面向医疗行业的智能问诊与客服系统，提供**症状咨询、智能分诊、报告解读、常见问题解答**四类核心能力。
-基于 LangChain 编排、OpenAI 兼容协议、Milvus 向量检索、FastAPI 服务端与 Vue3 前端。
+<div align="center">
+
+**面向就诊全流程的 AI 就医助手 —— 症状咨询 / 智能分诊 / 报告解读 / 就医 FAQ**
+
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688?logo=fastapi&logoColor=white)
+![LangChain](https://img.shields.io/badge/LangChain-编排-1C3C3C?logo=langchain&logoColor=white)
+![Vue](https://img.shields.io/badge/Vue-3-42B883?logo=vuedotjs&logoColor=white)
+![Milvus](https://img.shields.io/badge/Milvus-2.6%20%2F%203.0-0063FF?logo=milvus&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-green)
+
+🔗 **在线体验（无需注册，打开即用）**：https://medical-triage-ai.app.workbuddy.host/
+
+</div>
 
 > ⚠️ 本系统输出的是健康参考信息，**不构成医疗诊断**，不能替代执业医师的面诊、检查与诊断。
-> 出现危急情况请立即拨打 120。
+> 出现危急情况请立即拨打 **120**。
 
 ---
 
-## 一、核心功能
+## 一、30 秒跑起来
+
+零配置即可体验（不填任何 Key 也能跑，走本地规则引擎）：
+
+```bash
+git clone https://github.com/3353826467/medical-triage-ai-agent.git
+cd medical-triage-ai-agent
+
+python -m venv .venv
+.venv/Scripts/python.exe -m pip install -r backend/requirements.txt   # Windows
+# source .venv/bin/activate && pip install -r backend/requirements.txt   # Linux / macOS
+
+cd backend
+../.venv/Scripts/python.exe -m uvicorn app.main:app --port 8000
+# Linux / macOS：cd backend && uvicorn app.main:app --port 8000
+```
+
+打开 http://127.0.0.1:8000/docs 就能直接调接口（Swagger 自动文档）；前端界面需另起（`npm run dev`，见 [第八节](#八本地运行)）；只想连 API 的话，用现成的在线实例或 `POST /api/v1/chat` 即可。
+
+**Windows 用户**：双击根目录 `start-dev.bat` 即可自动建环境、装依赖、拉起前后端。
+
+想接真实大模型？改两行就行：
+
+```env
+# backend/.env
+OPENAI_BASE_URL=https://api.deepseek.com/v1   # 或 OpenAI / 通义 / 智谱 / Moonshot / vLLM / Ollama
+LLM_MODEL=deepseek-chat
+OPENAI_API_KEY=sk-xxxxxx
+```
+
+---
+
+## 二、它解决什么问题
+
+| 患者常问 | 普通客服 / 关键词机器人的表现 | 本系统的做法 |
+|---|---|---|
+| 「胸闷出汗是不是心脏问题？」 | 答非所问，或给一堆无关科普 | **先走医疗安全护栏**，识别疑似急性冠脉综合征，直接给急诊指引且不调用模型 |
+| 「饭后胀、反酸该挂什么科？」 | 关键词错配到「头痛」规则 | 意图路由 + RAG + 模型推理，输出科室、紧急程度、可能情况、可执行建议 |
+| 「血常规报告上一堆箭头看不懂」 | 无解 | 逐项解析指标，标注偏高/偏低，译成大白话并给复查建议 |
+| 「挂号要带什么？医保怎么报销？」 | 靠人工话术库 | FAQ 链路 + 知识库检索，答案附「参考依据」来源 |
+| 「说不清楚，就是难受」 | 反复兜圈 | 多轮追问 + 患者画像（年龄/性别/病程/既往史/过敏史）收敛信息缺口 |
+
+---
+
+## 三、工程亮点
+
+- **🛡️ 安全护栏不可绕过**：10 类红旗症状（ACS、卒中 FAST、呼吸窘迫、意识障碍、大出血、妊娠急症、婴幼儿高热、心理危机、过敏性休克、急腹症）命中即短路。护栏**下沉到每条能力链的 `arun()` 最内层**——直接打 `/api/v1/triage` 绕过对话编排，一样拦得住。
+- **🔁 全链路三级降级**：无 `OPENAI_API_KEY` → 本地规则引擎；Milvus 连不上 → 本地 JSON 索引；远端无 `/embeddings` → 本地哈希向量。**任一组件缺失都不影响启动**，通过 `/api/v1/runtime` 可实时查看实际生效引擎。
+- **🧩 四大能力链按需编排**：意图路由（关键词快判 + 模型兜底）自动分发到 triage / symptom / report / faq，路由失败落到 fallback。
+- **📚 结构化输出带出处**：JSON mode（`response_format=json_object`）+ 正则回退双重保障，答案附带「参考依据（来源 + 相关度）」，可追溯。
+- **⚡ SSE 流式输出**：`EventSource` 不支持 POST，前端改用 fetch + `ReadableStream` 手动解析数据流，实现打字机效果。
+- **📦 单端口部署**：FastAPI 以 `StaticFiles(html=True)` 托管前端构建产物，一个端口同时提供页面与 API，公网实例即为该模式。
+
+---
+
+## 四、系统架构
+
+```mermaid
+flowchart TB
+    subgraph Client["前端 Vue 3 + Vite"]
+        UI[问诊界面 / 分诊卡片 / 报告面板]
+        SSE[SSE 流式渲染]
+    end
+
+    subgraph Server["后端 FastAPI"]
+        API[路由层 /api/v1/*]
+        GUARD{{"🛡️ 医疗安全护栏<br/>10 类红旗症状扫描"}}
+        ROUTER[意图路由<br/>关键词快判 + 模型兜底]
+        C1[智能分诊]
+        C2[症状咨询]
+        C3[报告解读]
+        C4[就医 FAQ]
+        FB[兜底渲染]
+    end
+
+    subgraph RAG["RAG 检索增强"]
+        EMB[Embedding<br/>远端模型 / 本地哈希降级]
+        VS[(向量库<br/>Milvus · Lite · 本地 JSON)]
+        KB[markdown 知识库]
+        KB --> EMB --> VS
+    end
+
+    LLM[LangChain 编排<br/>OpenAI 兼容端点]
+
+    UI --> SSE
+    SSE -->|HTTP| API
+    API --> GUARD
+    GUARD -->|命中| EM["急诊 / 120 指引<br/>短路返回，不调模型"]
+    GUARD -->|未命中| ROUTER
+    ROUTER --> C1 & C2 & C3 & C4
+    ROUTER -.->|无法判定| FB
+    C1 & C2 & C3 & C4 <--> LLM
+    C1 & C2 & C3 <--> VS
+    C4 --> VS
+```
+
+一个请求的完整链路：`HTTP → 护栏扫描 → 意图路由 → RAG 检索 → 能力链 → LLM → 结构化解析 → 流式回吐`。
+
+---
+
+## 五、核心功能
 
 | 能力 | 说明 | 入口 |
 |---|---|---|
@@ -20,28 +132,27 @@
 **其他特性**
 
 - 多轮会话（带患者画像：年龄 / 性别 / 病程 / 既往史 / 过敏史）
-- **医疗安全护栏**：命中红旗症状（胸痛、卒中 FAST、呼吸困难、大出血、过敏性休克、自杀倾向等）时，
-  跳过模型自由发挥，直接给出急诊/120 指引
 - RAG 检索增强，答案附带"参考依据"（来源 + 相关度）
 - SSE 流式输出（打字机效果）
-- **全链路降级**：没有 OpenAI Key、没有 Milvus，服务照样能启动并给出合理答复
+- 任意 OpenAI 兼容端点切换，无需改代码
 
 ---
 
-## 二、技术栈
+## 六、技术栈
 
 | 层 | 选型 |
 |---|---|
 | 前端 | Vue 3（`<script setup>`）+ Vite 5 + marked |
-| 后端 | FastAPI + Pydantic v2 + Uvicorn |
+| 后端 | FastAPI + Pydantic v2 + Uvicorn（全异步） |
 | LLM 编排 | LangChain（`ChatOpenAI` / `ChatPromptTemplate` / Runnable） |
 | 大模型 | 任意 **OpenAI 兼容**端点：OpenAI / DeepSeek / 通义千问 / 智谱 / Moonshot / vLLM / Ollama |
 | 向量库 | **Milvus 2.6 / 3.0**（pymilvus 3.0.2）；Milvus Lite 或本地 JSON 索引（降级） |
+| Embedding | OpenAI Embedding；不可用时自动降级本地哈希向量（uni-bi-gram + TF-IDF + L2，384 维） |
 | 结构化输出 | JSON mode（`response_format=json_object`），失败自动回退正则提取 |
 
 ---
 
-## 三、目录结构
+## 七、目录结构
 
 ```
 .
@@ -79,20 +190,22 @@
 │   │   └── style.css
 │   ├── package.json
 │   └── vite.config.js
-├── data/knowledge/                 # 内置知识库（markdown）
+├── data/knowledge/                 # 内置知识库（markdown，6 篇）
+├── deploy/                         # 单端口部署包（含前端构建产物）
 ├── docker/
 │   ├── docker-compose.milvus.yml   # Milvus 2.6.25 standalone
 │   └── docker-compose.milvus-3.yml # Milvus 3.0.2 standalone
+├── docs/                           # 技术文档
 └── start-dev.bat                   # Windows 一键启动
 ```
 
 ---
 
-## 四、快速开始
+## 八、本地运行
 
 ### 方式 A：Windows 一键启动
 
-双击 `start-dev.bat`，会自动建虚拟环境、装依赖、分别弹出后端与前端窗口。
+双击 `start-dev.bat`，自动建虚拟环境、装依赖、分别弹出后端与前端窗口。
 
 ### 方式 B：手动启动
 
@@ -110,8 +223,6 @@ cd frontend
 npm install --registry=https://registry.npmmirror.com
 npm run dev
 ```
-
-访问：
 
 | 地址 | 内容 |
 |---|---|
@@ -153,25 +264,11 @@ npm run dev
 > "反酸"与"胃食管反流"的语义关联）。模型模式能识别并声明检索不相关，规则模式做不到。
 > 生产环境建议接入真正的 Embedding 模型（或 Milvus + 重排）来根治这个问题。
 
-配置后自动切换到 LangChain + 大模型：
-
-```bash
-cp backend/.env.example backend/.env
-# 编辑 backend/.env，填入 OPENAI_API_KEY
-```
-
-切换国内模型只需改两行：
-
-```env
-OPENAI_BASE_URL=https://api.deepseek.com/v1
-LLM_MODEL=deepseek-chat
-```
-
 ---
 
-### 公网部署
+## 九、公网部署（单端口）
 
-项目已支持**单端口部署**：后端在根路径托管前端构建产物，一个端口同时提供页面和 API。
+后端在根路径托管前端构建产物，一个端口同时提供页面和 API：
 
 ```bash
 # 1) 构建前端
@@ -192,7 +289,7 @@ cd deploy && PORT=8000 python run.py
 
 ---
 
-## 五、API 一览
+## 十、API 一览
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
@@ -237,7 +334,7 @@ curl -X POST http://127.0.0.1:8000/api/v1/chat \
 
 ---
 
-## 六、安全护栏设计
+## 十一、安全护栏设计
 
 护栏是系统中**优先级最高**的模块，位于 `app/safety/guard.py`。
 
@@ -257,7 +354,7 @@ curl -X POST http://127.0.0.1:8000/api/v1/chat \
 
 ---
 
-## 七、二次开发
+## 十二、二次开发
 
 ### 加知识
 
@@ -339,7 +436,7 @@ docker compose -f docker/docker-compose.milvus.yml up -d
 
 ---
 
-## 八、验证
+## 十三、验证
 
 ```bash
 cd backend
@@ -351,9 +448,17 @@ cd backend
 
 ---
 
-## 九、合规提示
+## 十四、合规提示
 
 - 本系统定位为**就医前信息咨询与分诊辅助**，不得用于替代医生诊断或开具处方。
 - `ALLOW_MEDICATION_ADVICE` 默认关闭，避免输出具体用药剂量建议。
 - 生产环境接入真实患者信息时，需额外满足：数据加密传输与存储、访问控制与审计日志、
   个人信息脱敏（见 `utils/text.py: mask_sensitive`）、医疗数据合规留存要求。
+
+---
+
+## License
+
+[MIT](LICENSE) © 2026 3353826467
+
+项目仅供学习研究，请勿用于实际医疗场景。
